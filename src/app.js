@@ -6,7 +6,7 @@ import { authenticate } from "./middlewares/auth.middleware.js";
 
 import { env } from "./config/env.js";
 import { auth } from "./config/auth.js";
-
+import studioRoutes from "./routes/studio.routes.js";
 // Initialize Express application
 const app = express();
 
@@ -27,6 +27,9 @@ app.all("/api/auth/{*any}", toNodeHandler(auth));
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Studio Routes
+app.use("/api/studios", studioRoutes);
 
 // Health check API
 app.get("/api/health", (req, res) => {
