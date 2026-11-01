@@ -1,3 +1,4 @@
+
 import app from "./app.js";
 import { connectDB } from "./config/db.js";
 import { env } from "./config/env.js";
@@ -9,9 +10,9 @@ const startServer = async () => {
     await connectDB();
 
     // Start Express server
-    app.listen(env.PORT, () => {
+    app.listen(env.PORT, "0.0.0.0", () => {
       console.log(`🚀 StudioSpace Server running on port ${env.PORT}`);
-      console.log(`🌐 API URL: http://localhost:${env.PORT}/api`);
+      console.log(`🌐 Server is listening on port ${env.PORT}`);
     });
   } catch (error) {
     console.error("❌ Failed to start server:", error.message);
@@ -21,3 +22,4 @@ const startServer = async () => {
 
 // Initialize server
 startServer();
+
