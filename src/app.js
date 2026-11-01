@@ -7,7 +7,10 @@ import { authenticate } from "./middlewares/auth.middleware.js";
 import { env } from "./config/env.js";
 import { auth } from "./config/auth.js";
 import studioRoutes from "./routes/studio.routes.js";
+import bookingRoutes from "./routes/booking.routes.js";
+
 // Initialize Express application
+
 const app = express();
 
 // Security middleware
@@ -30,6 +33,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Studio Routes
 app.use("/api/studios", studioRoutes);
+
+app.use("/api/bookings", bookingRoutes);
 
 // Health check API
 app.get("/api/health", (req, res) => {
