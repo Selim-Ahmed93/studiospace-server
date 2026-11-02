@@ -8,6 +8,10 @@ import { env } from "./config/env.js";
 import { auth } from "./config/auth.js";
 import studioRoutes from "./routes/studio.routes.js";
 import bookingRoutes from "./routes/booking.routes.js";
+import {
+  errorHandler,
+  notFoundHandler,
+} from "./middlewares/error.middleware.js";
 
 // Initialize Express application
 
@@ -19,7 +23,14 @@ app.use(helmet());
 // CORS configuration
 app.use(
   cors({
-    origin: env.CLIENT_URL,
+    origin(origin, callback) {
+      // Allow non-browser requests (curl, server-to-server) with no Origin
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      return callback(null, env.CLIENT_URLS.includes(origin));
+    },
     credentials: true,
   })
 );
@@ -56,6 +67,10 @@ app.get("/api/protected", authenticate, (req, res) => {
     },
   });
 });
+
+// JSON 404 and error responses
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // Export Express application
 export default app;
