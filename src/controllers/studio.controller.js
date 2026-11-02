@@ -10,7 +10,7 @@ import {
 export const createStudioController = async (req, res, next) => {
   try {
     const studioData = {
-      ...req.body,
+      ...req.validatedData.body,
       ownerId: req.user.id,
       ownerEmail: req.user.email,
       ownerName: req.user.name,
@@ -31,7 +31,7 @@ export const createStudioController = async (req, res, next) => {
 // 2. Get All Studios
 export const getStudiosController = async (req, res, next) => {
   try {
-    const result = await getStudios(req.query);
+    const result = await getStudios(req.validatedData.query);
 
     res.status(200).json({
       success: true,
@@ -64,7 +64,7 @@ export const updateStudioController = async (req, res, next) => {
     const studio = await updateStudio(
       req.params.id,
       req.user.id,
-      req.body
+      req.validatedData.body
     );
 
     res.status(200).json({
