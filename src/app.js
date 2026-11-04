@@ -5,7 +5,7 @@ import { toNodeHandler } from "better-auth/node";
 import { authenticate } from "./middlewares/auth.middleware.js";
 
 import { env } from "./config/env.js";
-import { auth } from "./config/auth.js";
+import { auth, googleAuthEnabled } from "./config/auth.js";
 import studioRoutes from "./routes/studio.routes.js";
 import bookingRoutes from "./routes/booking.routes.js";
 import {
@@ -34,6 +34,19 @@ app.use(
     credentials: true,
   })
 );
+
+// Public capability endpoint. It exposes only feature flags — never secret
+// values — so the client can hide providers that the server has not enabled.
+app.get("/api/config", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.status(200).json({
+    success: true,
+    data: {
+      googleAuthEnabled,
+      providers: googleAuthEnabled ? ["google"] : [],
+    },
+  });
+});
 
 // Better Auth handler
 app.all("/api/auth/{*any}", toNodeHandler(auth));

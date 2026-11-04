@@ -2,6 +2,7 @@
 import app from "./app.js";
 import { connectDB } from "./config/db.js";
 import { env } from "./config/env.js";
+import { googleAuthEnabled } from "./config/auth.js";
 
 // Start the server
 const startServer = async () => {
@@ -13,6 +14,9 @@ const startServer = async () => {
     app.listen(env.PORT, "0.0.0.0", () => {
       console.log(`🚀 StudioSpace Server running on port ${env.PORT}`);
       console.log(`🌐 Server is listening on port ${env.PORT}`);
+      console.log(
+        `🔐 Google OAuth provider: ${googleAuthEnabled ? "enabled" : "disabled"}`
+      );
     });
   } catch (error) {
     console.error("❌ Failed to start server:", error.message);

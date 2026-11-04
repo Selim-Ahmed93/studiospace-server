@@ -4,16 +4,20 @@ import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { env } from "./env.js";
 import { mongoClient, mongoDb } from "./db.js";
 
-// Google is only enabled when both credentials are present.
-const googleProvider =
+// Google is only enabled when both credentials are present. Trimmed env
+// loading in config/env.js turns blank dashboard values into undefined.
+export const googleAuthEnabled = Boolean(
   env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-    ? {
-        google: {
-          clientId: env.GOOGLE_CLIENT_ID,
-          clientSecret: env.GOOGLE_CLIENT_SECRET,
-        },
-      }
-    : {};
+);
+
+const googleProvider = googleAuthEnabled
+  ? {
+      google: {
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+      },
+    }
+  : {};
 
 // HTTPS deployments need cross-site cookies because the frontend and API live
 // on different domains. Local HTTP development keeps the browser-friendly

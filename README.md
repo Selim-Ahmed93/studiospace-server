@@ -64,9 +64,31 @@ The API runs at `http://localhost:5000` by default.
    - Production: `https://studiospace-server-7gad.onrender.com/api/auth/callback/google`
 3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the environment.
 4. Add the frontend URL to `CLIENT_URL` or `ADDITIONAL_CLIENT_URLS`.
-5. Redeploy the API.
+5. **Redeploy the API.** Environment changes alone are not enough when the
+   running build predates the Google provider code.
 
-Google login is disabled automatically when the credentials are missing.
+Google login is disabled automatically when either credential is missing or
+blank.
+
+### Verify that Google is actually enabled
+
+After a redeploy, check these three things:
+
+1. The startup log prints `🔐 Google OAuth provider: enabled`. It never prints
+   the credential values.
+2. `GET /api/config` returns:
+
+   ```json
+   { "success": true, "data": { "googleAuthEnabled": true, "providers": ["google"] } }
+   ```
+
+3. `POST /api/auth/sign-in/social` with `{ "provider": "google" }` returns a
+   Google authorization URL instead of `PROVIDER_NOT_FOUND`.
+
+If the log says `disabled` while the credentials exist in the dashboard, confirm
+that the variables are in the environment group used by the deployed service,
+that their names are exactly `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and
+that the values are not empty. Values are trimmed by `src/config/env.js`.
 
 ## Cross-site authentication notes
 
@@ -85,6 +107,7 @@ ADDITIONAL_CLIENT_URLS=http://localhost:3000
 
 | Method | Route | Access |
 |---|---|---|
+| `GET` | `/api/config` | Public capability flags (never secrets) |
 | `POST` | `/api/auth/sign-up/email` | Public |
 | `POST` | `/api/auth/sign-in/email` | Public |
 | `POST` | `/api/auth/sign-in/social` | Public (when provider configured) |
@@ -135,9 +158,26 @@ node scripts/test-booking-service.js
 
 - Hosted on Render.
 - Set all environment variables in the Render dashboard.
-- Set `BETTER_AUTH_URL` to the public Render URL.
+- Set `BETTER_AUTH_URL` to the public **HTTPS** Render URL. The cookie mode is
+  derived from this value: HTTPS enables `SameSite=None; Secure` for cross-site
+  Vercel ↔ Render sessions; HTTP keeps `SameSite=Lax` for local development.
 - Set `CLIENT_URL` to the production frontend URL and add any preview URLs to `ADDITIONAL_CLIENT_URLS`.
 - Redeploy after changing environment variables or authentication settings.
+- Confirm the deployed build is current by calling `GET /api/config`; an older
+  build returns an HTML `Cannot GET /api/config` page instead of JSON.
+
+### Troubleshooting cross-site login
+
+If email/password sign-in succeeds but the browser is sent back to
+`/login?redirect=...`:
+
+1. Open DevTools → Network → the `sign-in/email` response.
+2. Inspect the `Set-Cookie` header for the session token. It must contain
+   `SameSite=None` and `Secure` in production.
+3. If it contains `SameSite=Lax`, either the deployed build predates the
+   cross-site cookie support or `BETTER_AUTH_URL` is not an HTTPS URL.
+4. Redeploy the latest backend and sign in again.
+
 
 ## License
 
