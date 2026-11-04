@@ -19,9 +19,11 @@ const googleProvider = googleAuthEnabled
     }
   : {};
 
-// HTTPS deployments need cross-site cookies because the frontend and API live
-// on different domains. Local HTTP development keeps the browser-friendly
-// SameSite=Lax default.
+// The browser reaches this API through the frontend's same-origin /api/*
+// proxy, so auth cookies are first-party even in browsers that block
+// third-party cookies. HTTPS deployments still use SameSite=None; Secure for
+// compatibility with direct cross-site callers, while local HTTP development
+// keeps the browser-friendly SameSite=Lax default.
 const isHttps = env.BETTER_AUTH_URL.startsWith("https://");
 
 // Better Auth configuration

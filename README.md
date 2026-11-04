@@ -38,7 +38,9 @@ cp .env.example .env
 npm run dev
 ```
 
-The API runs at `http://localhost:5000` by default.
+The API runs at `http://localhost:5000` by default. The browser-facing auth
+origin is the client (`http://localhost:3000`), which proxies `/api/*` to this
+server; see the client README for its matching `.env.local` values.
 
 ### Environment variables
 
@@ -50,7 +52,7 @@ The API runs at `http://localhost:5000` by default.
 | `CLIENT_URL` | Yes | Primary frontend origin allowed by CORS and Better Auth |
 | `ADDITIONAL_CLIENT_URLS` | No | Comma-separated extra frontend origins (previews, localhost) |
 | `BETTER_AUTH_SECRET` | Yes | Random secret, at least 32 characters |
-| `BETTER_AUTH_URL` | Yes | Public URL of this API |
+| `BETTER_AUTH_URL` | Yes | Public frontend origin used to build Auth URLs (see OAuth setup) |
 | `GOOGLE_CLIENT_ID` | No | Enables Google login when set with the secret |
 | `GOOGLE_CLIENT_SECRET` | No | Enables Google login when set with the client ID |
 
@@ -59,12 +61,17 @@ The API runs at `http://localhost:5000` by default.
 ## Google OAuth setup
 
 1. Create an OAuth 2.0 Web application in Google Cloud Console.
-2. Add the authorized redirect URI:
-   - Local: `http://localhost:5000/api/auth/callback/google`
-   - Production: `https://studiospace-server-7gad.onrender.com/api/auth/callback/google`
-3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the environment.
-4. Add the frontend URL to `CLIENT_URL` or `ADDITIONAL_CLIENT_URLS`.
-5. **Redeploy the API.** Environment changes alone are not enough when the
+2. Add the authorized redirect URI. It lives on the **frontend** origin because
+   the frontend proxies `/api/*` to this API:
+   - Local: `http://localhost:3000/api/auth/callback/google`
+   - Production: `https://studiospace-client-g428.vercel.app/api/auth/callback/google`
+3. Set `BETTER_AUTH_URL` to the same frontend origin used above. Better Auth
+   builds the OAuth redirect URI from `BETTER_AUTH_URL`, so leaving it set to the
+   Render URL produces a cross-origin callback and can drop the state cookie in
+   browsers that block third-party cookies.
+4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the environment.
+5. Add the frontend URL to `CLIENT_URL` or `ADDITIONAL_CLIENT_URLS`.
+6. **Redeploy the API.** Environment changes alone are not enough when the
    running build predates the Google provider code.
 
 Google login is disabled automatically when either credential is missing or
@@ -90,13 +97,28 @@ that the variables are in the environment group used by the deployed service,
 that their names are exactly `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and
 that the values are not empty. Values are trimmed by `src/config/env.js`.
 
-## Cross-site authentication notes
+## Same-origin authentication proxy
 
-When the API and frontend are on different domains (for example Render + Vercel), HTTPS deployments use `SameSite=None; Secure` cookies so the browser can send the session cookie cross-site. Local HTTP development uses `SameSite=Lax`.
+The browser does **not** call this API directly. The frontend rewrites
+`/api/:path*` to the Render API URL, so browser requests and cookies stay on the
+frontend origin. This is required for OAuth: Better Auth's state cookie is set
+when sign-in starts and read again on the Google callback. In browsers that
+block third-party cookies, a cross-site state cookie is dropped, and Better Auth
+correctly fails the callback with `state_mismatch`.
+
+With the proxy in place:
+
+- `BETTER_AUTH_URL` is the public frontend origin, so the Google redirect URI is
+  `https://<frontend>/api/auth/callback/google`.
+- `CLIENT_URL` is the frontend origin trusted by CORS and Better Auth.
+- The API still sets `SameSite=None; Secure` for HTTPS compatibility with direct
+  callers; the browser sees those cookies as first-party because of the proxy.
+- Local HTTP development keeps `SameSite=Lax`.
 
 Add every frontend origin that should be trusted:
 
 ```env
+BETTER_AUTH_URL=https://your-frontend.vercel.app
 CLIENT_URL=https://your-frontend.vercel.app
 ADDITIONAL_CLIENT_URLS=http://localhost:3000
 ```
@@ -158,25 +180,34 @@ node scripts/test-booking-service.js
 
 - Hosted on Render.
 - Set all environment variables in the Render dashboard.
-- Set `BETTER_AUTH_URL` to the public **HTTPS** Render URL. The cookie mode is
-  derived from this value: HTTPS enables `SameSite=None; Secure` for cross-site
-  Vercel ↔ Render sessions; HTTP keeps `SameSite=Lax` for local development.
-- Set `CLIENT_URL` to the production frontend URL and add any preview URLs to `ADDITIONAL_CLIENT_URLS`.
+- Set `BETTER_AUTH_URL` to the public **frontend** origin, e.g.
+  `https://studiospace-client-g428.vercel.app`. Better Auth uses it to build the
+  Google redirect URI and auth URLs. The browser reaches this API through the
+  frontend's same-origin `/api/*` proxy.
+- Set `CLIENT_URL` to the production frontend URL and add any preview URLs to
+  `ADDITIONAL_CLIENT_URLS`.
+- On Vercel, set `API_PROXY_TARGET` to this Render service URL and leave
+  `NEXT_PUBLIC_API_URL` empty.
 - Redeploy after changing environment variables or authentication settings.
-- Confirm the deployed build is current by calling `GET /api/config`; an older
-  build returns an HTML `Cannot GET /api/config` page instead of JSON.
+- Confirm the deployed build is current by calling `GET /api/config` through the
+  frontend (or directly); an older build returns an HTML `Cannot GET /api/config`
+  page instead of JSON.
 
-### Troubleshooting cross-site login
+### Troubleshooting state_mismatch
 
-If email/password sign-in succeeds but the browser is sent back to
-`/login?redirect=...`:
+If Google login returns `?error=state_mismatch`:
 
-1. Open DevTools → Network → the `sign-in/email` response.
-2. Inspect the `Set-Cookie` header for the session token. It must contain
-   `SameSite=None` and `Secure` in production.
-3. If it contains `SameSite=Lax`, either the deployed build predates the
-   cross-site cookie support or `BETTER_AUTH_URL` is not an HTTPS URL.
-4. Redeploy the latest backend and sign in again.
+1. In DevTools → Application → Cookies, confirm the frontend origin stores the
+   Better Auth state cookie when sign-in starts. If it is missing, the browser
+   is blocking it as a third-party cookie: verify the frontend is using the
+   same-origin proxy and that `NEXT_PUBLIC_API_URL` is empty.
+2. Confirm the Google Cloud **Authorized redirect URI** exactly matches
+   `BETTER_AUTH_URL + /api/auth/callback/google`.
+3. Confirm `BETTER_AUTH_URL` is the frontend origin, not the Render URL.
+4. Confirm `BETTER_AUTH_SECRET` has not changed between starting sign-in and
+   completing the callback.
+5. Retry in a single tab. Starting a second Google sign-in overwrites the state
+   cookie, so the first tab's callback will fail validation.
 
 
 ## License
